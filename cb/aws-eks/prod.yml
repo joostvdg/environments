@@ -1,3 +1,2 @@
 applications:
-    - cat-nip:
-      - image.tag: 0.1.0master
+    - cat-nip
