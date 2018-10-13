@@ -1,0 +1,78 @@
+pipeline {
+    options {
+        buildDiscarder logRotator(artifactDaysToKeepStr: '5', artifactNumToKeepStr: '5', daysToKeepStr: '5', numToKeepStr: '5')
+        timeout(5)
+    }
+    agent {
+        kubernetes {
+            label 'jenkins-env-pipeline'
+            defaultContainer 'jnlp'
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: hub
+    image: caladreas/hub
+    command:
+    - cat
+    tty: true
+  - name: helm
+    image: caladreas/helm:2.11.0
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
+    stages {
+        stage('Evaluate PR') {
+            when { 
+                changeRequest() 
+            }
+            steps {
+                script {
+                    currentBuild.displayName = "${env.CHANGE_ID} - ${env.CHANGE_TITLE}"
+                }
+                // TODO: read changelog to figure out which application to test
+                echo sh(returnStdout: true, script: 'env')
+                container('helm') {
+                    withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                            sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                        }
+                        sh 'helm repo list'
+                        sh 'helm repo update'
+                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                            dir('cb/aws-eks') {
+                                sh 'cat-nip/install.sh --dry-run --debug'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // TODO: read changelog to figure out which application to test
+        stage('Perform PROD Update') {
+            when {
+                branch 'master'
+            }
+            steps {
+                container('helm') {
+                    withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                            sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                        }
+                        sh 'helm repo list'
+                        sh 'helm repo update'
+                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                            dir('cb/aws-eks') {
+                                sh 'cat-nip/install.sh'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
