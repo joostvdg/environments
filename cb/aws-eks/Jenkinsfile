@@ -38,7 +38,10 @@ spec:
                 script {
                     scmVars = checkout scm
                     echo "scmVars=${scmVars}"
-                    def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${scmVars.GIT_COMMIT}"
+                    // we need the previous commit, as that is the branch from which the PR originates
+                    // the current commit is the PR and not a valid object
+                    // "fatal: bad object ..."
+                    def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${scmVars.GIT_PREVIOUS_COMMIT}"
                     changeSetFolders = parseChangeSetForFolders("${changeSetData}", "cb/aws-eks/")
                     def data = readYaml file: 'prod.yml'
                     applications = data.applications
