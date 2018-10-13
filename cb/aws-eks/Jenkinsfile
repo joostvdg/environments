@@ -37,14 +37,14 @@ spec:
                 // TODO: read changelog to figure out which application to test
                 echo sh(returnStdout: true, script: 'env')
                 container('helm') {
-                    withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                            sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                        }
-                        sh 'helm repo list'
-                        sh 'helm repo update'
-                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                            dir('cb/aws-eks') {
+                    dir('cb/aws-eks') {
+                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                            }
+                            sh 'helm repo list'
+                            sh 'helm repo update'
+                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
                                 sh 'cat-nip/install.sh --dry-run --debug'
                             }
                         }
@@ -59,15 +59,15 @@ spec:
             }
             steps {
                 container('helm') {
-                    withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                            sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                        }
-                        sh 'helm repo list'
-                        sh 'helm repo update'
-                        withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                            dir('cb/aws-eks') {
-                                sh 'cat-nip/install.sh'
+                    dir('cb/aws-eks') {
+                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                            }
+                            sh 'helm repo list'
+                            sh 'helm repo update'
+                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    sh 'cat-nip/install.sh'
                             }
                         }
                     }
