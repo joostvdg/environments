@@ -75,7 +75,9 @@ spec:
                                         def folder = singleFolderResponse[i]
                                         applications.each {
                                             if (folder.equals("${it}")) {
-                                                sh "${folder}/install.sh --dry-run --debug"
+                                                dir(folder) {
+                                                    sh "install.sh --dry-run --debug"
+                                                }
                                             }
                                         }
                                     }
