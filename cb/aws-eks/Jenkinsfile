@@ -1,7 +1,14 @@
+def scmVars
+def changeSetFolders = ''
+def applications = ''
+
 pipeline {
     options {
         buildDiscarder logRotator(artifactDaysToKeepStr: '5', artifactNumToKeepStr: '5', daysToKeepStr: '5', numToKeepStr: '5')
         timeout(5)
+    }
+    libraries {
+        lib('jenkins-pipeline-library@master')
     }
     agent {
         kubernetes {
@@ -26,6 +33,18 @@ spec:
         }
     }
     stages {
+        stage('Prepare') {
+            steps {
+                script {
+                    scmVars = checkout scm
+                    echo "scmVars=${scmVars}"
+                    def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${scmVars.GIT_COMMIT}"
+                    changeSetFolders = parseChangeSetForFolders("${changeSetData}", "cb/aws-eks/")
+                    def data = readYaml file: 'prod.yml'
+                    applications = data.applications
+                }
+            }
+        }
         stage('Evaluate PR') {
             when { 
                 changeRequest() 
@@ -33,19 +52,31 @@ spec:
             steps {
                 script {
                     currentBuild.displayName = "${env.CHANGE_ID} - ${env.CHANGE_TITLE}"
-                }
-                // TODO: read changelog to figure out which application to test
-                echo sh(returnStdout: true, script: 'env')
-                container('helm') {
-                    dir('cb/aws-eks') {
-                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                            }
-                            sh 'helm repo list'
-                            sh 'helm repo update'
-                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                sh 'cat-nip/install.sh --dry-run --debug'
+                    // TODO: read changelog to figure out which application to test
+                    // look at changeSetFolders
+                    // compare to prod.yml
+                    // for each match, execute ${folder}/install.sh
+                    // TODO: rewrite into Golang helper binary?
+                    echo sh(returnStdout: true, script: 'env')
+                    container('helm') {
+                        dir('cb/aws-eks') {
+                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                                }
+                                sh 'helm repo list'
+                                sh 'helm repo update'
+                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    String[] singleFolderResponse = parseChangeList(single, changeRoot);
+                                    for (int i = 0; i < singleFolderResponse.length; i++) {
+                                        def folder = singleFolderResponse[i]
+                                        applications.each {
+                                            if (folder.equals("${it}")) {
+                                                sh "${folder}/install.sh --dry-run --debug"
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
