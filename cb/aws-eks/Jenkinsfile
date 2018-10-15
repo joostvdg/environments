@@ -1,11 +1,17 @@
-def scmVars
-def changeSetFolders = ''
-def applications = ''
 
 pipeline {
     options {
         buildDiscarder logRotator(artifactDaysToKeepStr: '5', artifactNumToKeepStr: '5', daysToKeepStr: '5', numToKeepStr: '5')
         timeout(5)
+    }
+    environment {
+        caFile = 'ca.pem'
+        changeRoot = 'cb/aws-eks/'
+        scmVars = ''
+        changeSetFolders = ''
+        applications = ''
+        commit= ''
+        fullFolder = ''
     }
     libraries {
         lib('jenkins-pipeline-library@master')
@@ -43,24 +49,17 @@ spec:
                 script {
                     scmVars = checkout scm
                     echo "scmVars=${scmVars}"
-                    def commit = "${scmVars.GIT_COMMIT}"
-                    // def commit = "${scmVars.GIT_PREVIOUS_COMMIT}"
-                    // if (commit.equals('null')) {
-                    //     commit = "${scmVars.GIT_COMMIT}"
-                    // }
+                    commit = "${scmVars.GIT_COMMIT}"
                     
                     def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${commit}"
                     changeSetData = changeSetData.replace("\n", "\\n")
                     container('jpb') {
-                        changeSetFolders = sh returnStdout: true, script: "/usr/bin/jpb/bin/jpb GitChangeListToFolder '${changeSetData}' 'cb/aws-eks/'"
+                        changeSetFolders = sh returnStdout: true, script: "/usr/bin/jpb/bin/jpb GitChangeListToFolder '${changeSetData}' '${changeRoot}'"
                         changeSetFolders = changeSetFolders.split(',')
                     }
-                    // changeSetFolders = parseChangeSetForFolders("${changeSetData}", "cb/aws-eks/")
-                    dir('cb/aws-eks/') {
-                        def data = readYaml file: 'prod.yml'
-                        applications = data.applications
-                        echo "Found applications: ${applications}"
-                    }
+                    
+                    def data = readYaml file: "${changeRoot}prod.yml"
+                    applications = data.applications
                 }
             }
         }
@@ -68,83 +67,77 @@ spec:
             when { 
                 changeRequest() 
             }
+            environment {
+                CA_PEM=credentials('letsencrypt-staging-ca')
+                CM=credentials('chartmuseum')
+            }
             steps {
-                script {
-                    currentBuild.displayName = "${env.CHANGE_ID} - ${env.CHANGE_TITLE}"
-                    // look at changeSetFolders
-                    // compare to prod.yml
-                    // for each match, execute ${folder}/install.sh
-                    echo sh(returnStdout: true, script: 'env')
-                    container('helm') {
+                container('helm') {
+                    sh 'cp ${CA_PEM} ${caFile}'
+                    sh 'helm repo add chartmuseum https://charts.kearos.net --username ${CM_USR} --password ${CM_PSW}  --ca-file ${caFile}'
+                    sh 'helm repo list'
+                    sh 'helm repo update'
+
+                    script {
                         changeSetFolders.each {
                             def folder = "${it}"
                             folder = folder.replace("\n", "")
                             folder = folder.trim()
-                            def fullFolder = "cb/aws-eks/${folder}"
+                            fullFolder = "${changeRoot}${folder}"
                             fullFolder.trim()
-                            def caFile = 'ca.pem'
+                            sh "cp ${CA_PEM} ${fullFolder}//${caFile}"
+                            
                             echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
-                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                                sh "cp ${CA_PEM} ${caFile}"
-                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${caFile}"
-                                }
-                                sh 'helm repo list'
-                                sh 'helm repo update'
-                                sh "cp ${CA_PEM} ${fullFolder}//${caFile}"
-                                sh "ls -lath ${fullFolder}//${caFile}"
-                            }
                             applications.each {
-                                // TODO: remove debug
                                 def app = "${it}"
                                 app = app.trim()
-                                echo "App=${app}"
                                 if ("${folder}" == "${app}") {
-                                    echo "Going to dry-run an update to app ${app}"
                                     dir("${fullFolder}") {
-                                        sh 'ls -lath'
-                                        // TODO: make sharedlib functions
-                                        echo "Verifying if there are folder changes we need to dry-run"
                                         sh './install.sh --dry-run --debug'    
-                                        // withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                        // } //end with with cred (chart)
-                                        // } // end with cred (ca)
                                     } // end dir
                                 } // end if
                             } // end applications.each
                         } // end changeSetFolders.each
-                    } // end container
-                } // end script
+                    }
+                }
             }
         }
         stage('Perform PROD Update') {
             when {
                 branch 'master'
             }
+            environment {
+                CA_PEM=credentials('letsencrypt-staging-ca')
+                CM=credentials('chartmuseum')
+            }
             steps {
                 container('helm') {
+                    sh 'cp ${CA_PEM} ${caFile}'
+                    sh 'helm repo add chartmuseum https://charts.kearos.net --username ${CM_USR} --password ${CM_PSW}  --ca-file ${caFile}'
+                    sh 'helm repo list'
+                    sh 'helm repo update'
+
+                    // TODO: deduplicate via shared lib
                     script {
-                        dir('cb/aws-eks') {
-                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                                }
-                                sh 'helm repo list'
-                                sh 'helm repo update'
-                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    applications.each {
-                                        def app = "${it}"
-                                        changeSetFolders.each {
-                                            if (app.equals("${it}")) {
-                                                dir(folder) {
-                                                    sh 'install.sh'
-                                                } // end dir
-                                            } // end if
-                                        } // end changeSetFolders.each
-                                    } // end app.each
-                                }
-                            }
-                        }
+                        changeSetFolders.each {
+                            def folder = "${it}"
+                            folder = folder.replace("\n", "")
+                            folder = folder.trim()
+                            fullFolder = "${changeRoot}${folder}"
+                            fullFolder.trim()
+                            sh "cp ${CA_PEM} ${fullFolder}//${caFile}"
+                            
+                            echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
+                            applications.each {
+                                def app = "${it}"
+                                app = app.trim()
+                                if ("${folder}" == "${app}") {
+                                    dir("${fullFolder}") {
+                                        sh './install.sh'
+                                    } // end dir
+                                } // end if
+                            } // end applications.each
+                        } // end changeSetFolders.each
                     }
                 }
             }
