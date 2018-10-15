@@ -99,24 +99,26 @@ spec:
             }
             steps {
                 container('helm') {
-                    dir('cb/aws-eks') {
-                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                            }
-                            sh 'helm repo list'
-                            sh 'helm repo update'
-                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                applications.each {
-                                    def app = "${it}"
-                                    folders.each {
-                                        if (app.equals("${it}")) {
-                                            dir(folder) {
-                                                sh "install.sh --dry-run --debug"
-                                            } // end dir
-                                        } // end if
-                                    } // end folders.each
-                                } // end app.each
+                    script {
+                        dir('cb/aws-eks') {
+                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                                }
+                                sh 'helm repo list'
+                                sh 'helm repo update'
+                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    applications.each {
+                                        def app = "${it}"
+                                        folders.each {
+                                            if (app.equals("${it}")) {
+                                                dir(folder) {
+                                                    sh "install.sh --dry-run --debug"
+                                                } // end dir
+                                            } // end if
+                                        } // end folders.each
+                                    } // end app.each
+                                }
                             }
                         }
                     }
