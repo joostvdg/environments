@@ -78,9 +78,11 @@ spec:
                     container('helm') {
                         changeSetFolders.each {
                             def folder = "${it}"
-                            def fullFolder = "cb/aws-eks/${folder}"
-                            def caFile = 'ca.pem'
+                            folder = folder.replace("\n", "")
                             folder = folder.trim()
+                            def fullFolder = "cb/aws-eks/${folder}"
+                            fullFolder.trim()
+                            def caFile = 'ca.pem'
                             echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
                             withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
                                 sh "cp ${CA_PEM} ${caFile}"
@@ -89,8 +91,8 @@ spec:
                                 }
                                 sh 'helm repo list'
                                 sh 'helm repo update'
-                                sh "cp ${CA_PEM} ${fullFolder}/${caFile}"
-                                sh "ls -lath ${fullFolder}/${caFile}"
+                                sh "cp ${CA_PEM} ${fullFolder}//${caFile}"
+                                sh "ls -lath ${fullFolder}//${caFile}"
                             }
                             applications.each {
                                 // TODO: remove debug
