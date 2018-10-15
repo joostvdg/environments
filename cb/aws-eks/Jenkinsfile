@@ -82,11 +82,15 @@ spec:
                                 }
                                 sh 'helm repo list'
                                 sh 'helm repo update'
+                                echo "Verifying if there are folder changes we need to dry-run"
                                 withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    applications.each {
-                                        def app = "${it}"
-                                        changeSetFolders.each {
-                                            if (app.equals("${it}")) {
+                                    changeSetFolders.each {
+                                        def folder = "${it}"
+                                        echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
+                                        applications.each {
+                                            // TODO: remove debug
+                                            echo "App=${it}"
+                                            if (folder.equals("${it}")) {
                                                 dir(folder) {
                                                     sh "install.sh --dry-run --debug"
                                                 } // end dir
@@ -120,7 +124,7 @@ spec:
                                         changeSetFolders.each {
                                             if (app.equals("${it}")) {
                                                 dir(folder) {
-                                                    sh "install.sh --dry-run --debug"
+                                                    sh "install.sh"
                                                 } // end dir
                                             } // end if
                                         } // end changeSetFolders.each
