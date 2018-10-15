@@ -87,11 +87,15 @@ spec:
                                 withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
                                     changeSetFolders.each {
                                         def folder = "${it}"
+                                        folder = folder.trim()
                                         echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
                                         applications.each {
                                             // TODO: remove debug
-                                            echo "App=${it}"
-                                            if (folder.equals("${it}")) {
+                                            def app = "${it}"
+                                            app = app.trim()
+                                            echo "App=${app}"
+                                            if ("${folder}" == "${app}") {
+                                                echo "Going to dry-run an update to app ${app}"
                                                 dir(folder) {
                                                     sh "install.sh --dry-run --debug"
                                                 } // end dir
