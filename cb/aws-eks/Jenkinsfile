@@ -41,10 +41,18 @@ spec:
                     // we need the previous commit, as that is the branch from which the PR originates
                     // the current commit is the PR and not a valid object
                     // "fatal: bad object ..."
+                    
                     def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${scmVars.GIT_PREVIOUS_COMMIT}"
-                    changeSetFolders = parseChangeSetForFolders("${changeSetData}", "cb/aws-eks/")
-                    def data = readYaml file: 'prod.yml'
-                    applications = data.applications
+                    changeSetData = changeSetData.replace("\n", "\\n")
+                    container('jpb') {
+                        changeSetFolders = sh returnStdout: true, script: "/usr/bin/jpb/bin/jpb GitChangeListToFolder '${changeSetData}' 'cb/aws-eks/'"
+                        changeSetFolders = changeSetFolders.split(',')
+                    }
+                    // changeSetFolders = parseChangeSetForFolders("${changeSetData}", "cb/aws-eks/")
+                    dir('cb/aws-eks/') {
+                        def data = readYaml file: 'prod.yml'
+                        applications = data.applications
+                    }
                 }
             }
         }
@@ -55,11 +63,9 @@ spec:
             steps {
                 script {
                     currentBuild.displayName = "${env.CHANGE_ID} - ${env.CHANGE_TITLE}"
-                    // TODO: read changelog to figure out which application to test
                     // look at changeSetFolders
                     // compare to prod.yml
                     // for each match, execute ${folder}/install.sh
-                    // TODO: rewrite into Golang helper binary?
                     echo sh(returnStdout: true, script: 'env')
                     container('helm') {
                         dir('cb/aws-eks') {
@@ -70,25 +76,23 @@ spec:
                                 sh 'helm repo list'
                                 sh 'helm repo update'
                                 withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    String[] singleFolderResponse = parseChangeList(single, changeRoot);
-                                    for (int i = 0; i < singleFolderResponse.length; i++) {
-                                        def folder = singleFolderResponse[i]
-                                        applications.each {
-                                            if (folder.equals("${it}")) {
+                                    applications.each {
+                                        def app = "${it}"
+                                        folders.each {
+                                            if (app.equals("${it}")) {
                                                 dir(folder) {
                                                     sh "install.sh --dry-run --debug"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                                                } // end dir
+                                            } // end if
+                                        } // end folders.each
+                                    } // end app.each
+                                } //end with with cred (chart)
+                            } // end with cred (ca)
+                        } // end dir
+                    } // end container
+                } // end script
             }
         }
-        // TODO: read changelog to figure out which application to test
         stage('Perform PROD Update') {
             when {
                 branch 'master'
@@ -103,7 +107,16 @@ spec:
                             sh 'helm repo list'
                             sh 'helm repo update'
                             withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    sh 'cat-nip/install.sh'
+                                applications.each {
+                                    def app = "${it}"
+                                    folders.each {
+                                        if (app.equals("${it}")) {
+                                            dir(folder) {
+                                                sh "install.sh --dry-run --debug"
+                                            } // end dir
+                                        } // end if
+                                    } // end folders.each
+                                } // end app.each
                             }
                         }
                     }
