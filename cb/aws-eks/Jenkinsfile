@@ -76,35 +76,36 @@ spec:
                     // for each match, execute ${folder}/install.sh
                     echo sh(returnStdout: true, script: 'env')
                     container('helm') {
-                        dir('cb/aws-eks') {
-                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                                }
-                                sh 'helm repo list'
-                                sh 'helm repo update'
-                                echo "Verifying if there are folder changes we need to dry-run"
-                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                    changeSetFolders.each {
-                                        def folder = "${it}"
-                                        folder = folder.trim()
-                                        echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
-                                        applications.each {
-                                            // TODO: remove debug
-                                            def app = "${it}"
-                                            app = app.trim()
-                                            echo "App=${app}"
-                                            if ("${folder}" == "${app}") {
-                                                echo "Going to dry-run an update to app ${app}"
-                                                dir(folder) {
-                                                    sh "install.sh --dry-run --debug"
-                                                } // end dir
-                                            } // end if
-                                        } // end changeSetFolders.each
-                                    } // end app.each
-                                } //end with with cred (chart)
-                            } // end with cred (ca)
-                        } // end dir
+                        changeSetFolders.each {
+                            def folder = "${it}"
+                            def fullFolder = "cb/aws-eks/${folder}"
+                            folder = folder.trim()
+                            echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
+                            applications.each {
+                                // TODO: remove debug
+                                def app = "${it}"
+                                app = app.trim()
+                                echo "App=${app}"
+                                if ("${folder}" == "${app}") {
+                                    echo "Going to dry-run an update to app ${app}"
+                                    dir("${fullFolder}") {
+                                        sh 'ls -lath'
+                                        // TODO: make sharedlib functions
+                                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
+                                            }
+                                            sh 'helm repo list'
+                                            sh 'helm repo update'
+                                            echo "Verifying if there are folder changes we need to dry-run"
+                                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                                sh 'install.sh --dry-run --debug'    
+                                            } //end with with cred (chart)
+                                        } // end with cred (ca)
+                                    } // end dir
+                                } // end if
+                            } // end applications.each
+                        } // end changeSetFolders.each
                     } // end container
                 } // end script
             }
@@ -129,7 +130,7 @@ spec:
                                         changeSetFolders.each {
                                             if (app.equals("${it}")) {
                                                 dir(folder) {
-                                                    sh "install.sh"
+                                                    sh 'install.sh'
                                                 } // end dir
                                             } // end if
                                         } // end changeSetFolders.each
