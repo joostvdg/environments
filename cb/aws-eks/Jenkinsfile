@@ -29,6 +29,11 @@ spec:
     command:
     - cat
     tty: true
+  - name: jpb
+    image: caladreas/jpb
+    command:
+    - cat
+    tty: true
 """
         }
     }
