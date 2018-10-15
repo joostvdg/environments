@@ -79,8 +79,18 @@ spec:
                         changeSetFolders.each {
                             def folder = "${it}"
                             def fullFolder = "cb/aws-eks/${folder}"
+                            def caFile = 'ca.pem'
                             folder = folder.trim()
                             echo "Change in folder ${folder} - see if it matching folders that are installed in PROD"
+                            withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
+                                sh "cp ${CA_PEM} ${caFile}"
+                                withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                    sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${caFile}"
+                                }
+                                sh 'helm repo list'
+                                sh 'helm repo update'
+                                sh "cp ${caFile} ${fullFolder}/${caFile}"
+                            }
                             applications.each {
                                 // TODO: remove debug
                                 def app = "${it}"
@@ -91,17 +101,11 @@ spec:
                                     dir("${fullFolder}") {
                                         sh 'ls -lath'
                                         // TODO: make sharedlib functions
-                                        withCredentials([file(credentialsId: 'letsencrypt-staging-ca', variable: 'CA_PEM')]) {
-                                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                                sh "helm repo add chartmuseum https://charts.kearos.net --username ${USR} --password ${PSS}  --ca-file ${CA_PEM}"
-                                            }
-                                            sh 'helm repo list'
-                                            sh 'helm repo update'
-                                            echo "Verifying if there are folder changes we need to dry-run"
-                                            withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
-                                                sh 'install.sh --dry-run --debug'    
-                                            } //end with with cred (chart)
-                                        } // end with cred (ca)
+                                        echo "Verifying if there are folder changes we need to dry-run"
+                                        sh 'install.sh --dry-run --debug'    
+                                        // withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
+                                        // } //end with with cred (chart)
+                                        // } // end with cred (ca)
                                     } // end dir
                                 } // end if
                             } // end applications.each
