@@ -89,7 +89,8 @@ spec:
                                 }
                                 sh 'helm repo list'
                                 sh 'helm repo update'
-                                sh "cp ${caFile} ${fullFolder}/${caFile}"
+                                sh "cp ${CA_PEM} ${fullFolder}/${caFile}"
+                                sh "ls -lath ${fullFolder}/${caFile}"
                             }
                             applications.each {
                                 // TODO: remove debug
