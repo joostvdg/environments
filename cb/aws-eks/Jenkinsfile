@@ -85,13 +85,13 @@ spec:
                                 withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
                                     applications.each {
                                         def app = "${it}"
-                                        folders.each {
+                                        changeSetFolders.each {
                                             if (app.equals("${it}")) {
                                                 dir(folder) {
                                                     sh "install.sh --dry-run --debug"
                                                 } // end dir
                                             } // end if
-                                        } // end folders.each
+                                        } // end changeSetFolders.each
                                     } // end app.each
                                 } //end with with cred (chart)
                             } // end with cred (ca)
@@ -117,13 +117,13 @@ spec:
                                 withCredentials([usernamePassword(credentialsId: 'chartmuseum', passwordVariable: 'PSS', usernameVariable: 'USR')]) {
                                     applications.each {
                                         def app = "${it}"
-                                        folders.each {
+                                        changeSetFolders.each {
                                             if (app.equals("${it}")) {
                                                 dir(folder) {
                                                     sh "install.sh --dry-run --debug"
                                                 } // end dir
                                             } // end if
-                                        } // end folders.each
+                                        } // end changeSetFolders.each
                                     } // end app.each
                                 }
                             }
