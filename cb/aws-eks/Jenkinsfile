@@ -43,10 +43,11 @@ spec:
                 script {
                     scmVars = checkout scm
                     echo "scmVars=${scmVars}"
-                    def commit = "${scmVars.GIT_PREVIOUS_COMMIT}"
-                    if (commit.equals('null')) {
-                        commit = "${scmVars.GIT_COMMIT}"
-                    }
+                    def commit = "${scmVars.GIT_COMMIT}"
+                    // def commit = "${scmVars.GIT_PREVIOUS_COMMIT}"
+                    // if (commit.equals('null')) {
+                    //     commit = "${scmVars.GIT_COMMIT}"
+                    // }
                     
                     def changeSetData = sh returnStdout: true, script: "git diff-tree --no-commit-id --name-only -r ${commit}"
                     changeSetData = changeSetData.replace("\n", "\\n")
