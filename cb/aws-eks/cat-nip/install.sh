@@ -1,2 +1,2 @@
 kubectl apply -f certificate.yml
-helm upgrade --install --name cat-nip --namespace cat -f values.yml -f image-values.yml chartmuseum/cat-nip "$@"
+helm upgrade cat-nip chartmuseum/cat-nip --install --namespace cat -f values.yml -f image-values.yml "$@"
